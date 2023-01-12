@@ -1,0 +1,21 @@
+config:
+  phases:
+    - name: Steady
+      duration: 60 #steady phase
+      arrivalRate: 20
+    - name: Scale out
+      duration: 300 # scale out phase after first minute
+      arrivalRate: 150
+    - name: Why it is so quiet?
+      duration: 120 # why it is so quiet ? after 5 minute
+      arrivalRate: 1
+    - name: Hit them one more time
+      duration: 60 # hit them hard after 7 minute
+      arrivalRate: 150
+    - name: Scale in
+      duration: 1200 # scale in phase after 10 minute
+      arrivalRate: 1
+scenarios:
+    - flow:
+      - get:
+            url: "/"

@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-app
+
+  Sample SAM Template for sam-app
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      AutoPublishAlias: live
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: 10
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Events:
+        HelloWorld:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /hello
+            Method: get
+      
+  AutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties: 
+      MaxCapacity: 30
+      MinCapacity: 10
+      ResourceId:  !Join [ ":",[  'function',!Ref HelloWorldFunction,'live']  ]
+      RoleARN: 
+        Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/lambda.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_LambdaConcurrency'
+      ScalableDimension: 'lambda:function:ProvisionedConcurrency'
+      ServiceNamespace: lambda
+  
+  AutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: "HelloWorldFunctionScalingPolicy"
+      PolicyType: 'TargetTrackingScaling'
+      ScalingTargetId: 
+        Ref: AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 0.75
+        PredefinedMetricSpecification: 
+          PredefinedMetricType: 'LambdaProvisionedConcurrencyUtilization'
+          
+  AutoScalingDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: sam_app_Lambda_Workshops
+      DashboardBody: !Sub >-
+        {
+            "widgets": [
+                {
+                    "height": 6,
+                    "width": 12,
+                    "y": 0,
+                    "x": 0,
+                    "type": "metric",
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "ProvisionedConcurrentExecutions", "FunctionName", "${HelloWorldFunction}", { "label": "Max Provisioned Concurrent Executions" } ],
+                            [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${HelloWorldFunction}", { "label": "Max Concurrent Execution" } ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": false,
+                        "region": "${AWS::Region}",
+                        "stat": "Maximum",
+                        "period": 60,
+                        "title": "Concurrent Execution vs Provisioned Used"
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 11,
+                    "y": 12,
+                    "x": 12,
+                    "type": "metric",
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "Invocations", "FunctionName", "${HelloWorldFunction}" ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": true,
+                        "region": "${AWS::Region}",
+                        "stat": "Sum",
+                        "period": 60,
+                        "title": "Sum of Lambda Invocations"
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 12,
+                    "y": 6,
+                    "x": 0,
+                    "type": "metric",
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/ApiGateway", "Latency", "ApiName", "sam-app" ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": true,
+                        "region": "${AWS::Region}",
+                        "stat": "Maximum",
+                        "period": 60,
+                        "title": "API Gateway - Latency - Max"
+                    }
+                },
+                {
+                    "height": 6,
+                    "width": 12,
+                    "y": 12,
+                    "x": 0,
+                    "type": "metric",
+                    "properties": {
+                        "metrics": [
+                            [ "AWS/Lambda", "UnreservedConcurrentExecutions" ]
+                        ],
+                        "view": "timeSeries",
+                        "stacked": true,
+                        "region": "${AWS::Region}",
+                        "period": 60,
+                        "stat": "Maximum",
+                        "title": "Max Unreserved Concurrency"
+                    }
+                }
+            ]
+        }
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  HelloWorldFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt HelloWorldFunction.Arn
+  HelloWorldFunctionIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt HelloWorldFunctionRole.Arn
+  HelloWorldFunctionName:
+    Description: "Lambda name"
+    Value: !Ref HelloWorldFunction
+
+
