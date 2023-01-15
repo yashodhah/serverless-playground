@@ -1,0 +1,8 @@
+config:
+  phases:
+    - duration: 480
+      arrivalRate: 10
+scenarios:
+  - flow:
+      - get:
+          url: "/"
